@@ -30,7 +30,7 @@ module "bowtie_us_west_2" {
 
     init-users = [{
       email = var.bowtie_admin_email
-      hashed_password = bcrypt(var.bowtie_admin_password)
+      hashed_password = format("$bcrypt%s", bcrypt(var.bowtie_admin_password))
     }]
 
     providers = { aws = aws.us-west-2 }
@@ -59,7 +59,7 @@ module "bowtie_us_east_2" {
 
     init-users = [{
       email = var.bowtie_admin_email
-      hashed_password = bcrypt(var.bowtie_admin_password)
+      hashed_password = format("$bcrypt%s", bcrypt(var.bowtie_admin_password))
     }]
     
     use_nlb_and_asg = true

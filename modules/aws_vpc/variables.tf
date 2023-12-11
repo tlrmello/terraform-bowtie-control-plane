@@ -64,6 +64,7 @@ variable "bootstrap_hosts" {
 }
 
 variable "init-users" {
+    sensitive = true
     type = list(object({
         email=string,
         hashed_password=string
