@@ -1,12 +1,96 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 2.7.0"
+    }
+  }
+}
+
 locals {
-  dns_records = [for v in var.instances : "${v}.${var.name}.${var.dns_zone.name}"]
-  entrypoint_string = format("\"%s\"", join("\",\"", var.all_endpoints))
+  flattened-instances = flatten([
+    for i in range(0, length(var.subnets)): [
+      for j in range(0, var.subnets[i].number_of_controllers): {
+          name = format("%s%02d", var.subnets[i].host_prefix, j),
+          dns_name = "${format("%s%02d", var.subnets[i].host_prefix, j)}.${var.name}.${var.dns_zone_name}",
+          vpc_id = var.vpc_id,
+          vpc_controller_subnet_id = var.subnets[i].vpc_controller_subnet_id,
+          site_id = var.subnets[i].site_id,
+          vpc_nlb_subnet_id = var.subnets[i].vpc_nlb_subnet_id,
+        }
+    ]
+  ])
+  hosts_short = [for i in range(0, length(local.flattened-instances)) : local.flattened-instances[i].name]
+
+  bootstrap_hosts_urls = [
+    for i in range(0, length(var.bootstrap_hosts)):
+      format("https://%s", var.bootstrap_hosts[i])
+  ]
+
+  entrypoint_string = format("\"%s\"", join("\",\"", local.bootstrap_hosts_urls))
+
+  init-users-text = join("\n", [
+    for i in range(0, length(var.init-users)):
+      "${var.init-users[i].email}:${var.init-users[i].hashed_password}"
+  ])
+}
+
+data "aws_route53_zone" "org" {
+  name         = var.dns_zone_name
+  private_zone = false
+}
+
+resource "aws_security_group" "public" {
+  name        = "${var.name} public security group"
+  description = "${var.name} Bowtie Controllers"
+  vpc_id      = var.vpc_id
+
+
+  /* TODO Paramaterize.
+  Potentially paramaterizing this means allowing one SG per Subnet
+  So maybe we should do that now, if the resource will be dynamic in the future
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }*/
+  
+  /* If we need to enable the zerossl fallback, that's here
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  */
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "udp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # The "permit all outbound traffic" rule:
+  egress {
+    from_port        = 0
+    to_port          = 0
+    protocol         = "-1"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }
 }
 
 resource "aws_route53_record" "endpoint" {
-  count = length(var.instances)
-  zone_id = var.dns_zone.zone_id
-  name    = local.dns_records[count.index]
+  count = length(local.flattened-instances)
+  zone_id = data.aws_route53_zone.org.zone_id
+  name    = local.flattened-instances[count.index].dns_name
   type    = var.use_nlb_and_asg ? "CNAME" : "A"
   ttl     = "60"
   records = [var.use_nlb_and_asg ? aws_lb.controller[count.index].dns_name : aws_instance.controller[count.index].public_ip]
@@ -15,15 +99,15 @@ resource "aws_route53_record" "endpoint" {
 data "cloudinit_config" "user_data" {
   gzip          = false
   base64_encode = false
-  count         = length(var.instances)
+  count         = length(local.flattened-instances)
 
   part {
     filename     = "cloud-init.yml"
     content_type = "text/cloud-config"
 
     content = yamlencode({
-      fqdn                      = local.dns_records[count.index]
-      hostname                  = local.dns_records[count.index]
+      fqdn                      = local.flattened-instances[count.index].dns_name
+      hostname                  = local.flattened-instances[count.index].dns_name
       preserve_hostname         = false
       prefer_fqdn_over_hostname = true
 
@@ -34,21 +118,18 @@ data "cloudinit_config" "user_data" {
         {
           path    = "/etc/bowtie-server.d/site.conf"
           content = <<-EOS
-            SITE_ID=${var.site_id.result}
-            BOWTIE_SYNC_PSK=${var.psk.result}
+            SITE_ID=${local.flattened-instances[count.index].site_id}
+            BOWTIE_SYNC_PSK=${var.sync_psk.result}
             BOWTIE_JOIN_STRATEGY=bootstrap-at-failure
           EOS
         }
-        # "Am I the leader?"
-        ], count.index == 0 ? [
+        ],
+        [
         {
           path    = "/var/lib/bowtie/init-users"
-          content = <<-EOS
-            ${var.bowtie_admin_email}:${var.bowtie_hashed_password}
-          EOS
+          content = local.init-users-text
         }
-        # This instance is _not_ the leader
-        ] : [],
+        ],
         [
         {
           path    = "/var/lib/bowtie/should-join.conf"
@@ -82,11 +163,11 @@ data "aws_ami" "controller" {
 
 # Actual EC2 instance
 resource "aws_instance" "controller" {
-  count = var.use_nlb_and_asg ? 0 : length(var.instances)
+  count = var.use_nlb_and_asg ? 0 : length(local.flattened-instances)
   ami                    = data.aws_ami.controller.id
   iam_instance_profile = var.iam_instance_profile_name
-  subnet_id              = var.controller_subnet_id
-  vpc_security_group_ids = var.security_groups
+  subnet_id              = local.flattened-instances[count.index].vpc_controller_subnet_id
+  vpc_security_group_ids = [aws_security_group.public.id]
   instance_type          = var.instance_type
   key_name               = var.key_name
 
@@ -102,21 +183,21 @@ resource "aws_instance" "controller" {
   user_data_replace_on_change = true
 
   tags = {
-    Name = "${var.instances[count.index]}.${var.name}.${var.dns_zone.name}"
+    Name = "${local.flattened-instances[count.index].dns_name}"
   }
 }
 
 
 /* Alternate strategy is to use an NLB and ASG of length 1 */
 resource "aws_placement_group" "controller" {
-  count = var.use_nlb_and_asg ? length(var.instances) : 0
-  name     = "${var.instances[count.index]}.${var.name}"
+  count = var.use_nlb_and_asg ? length(local.flattened-instances) : 0
+  name     = "${local.flattened-instances[count.index].name}"
   strategy = "cluster"
 }
 
 resource "aws_launch_template" "controller" {
-  count = var.use_nlb_and_asg ? length(var.instances) : 0
-  name   = "${var.instances[count.index]}.${var.name}"
+  count = var.use_nlb_and_asg ? length(local.flattened-instances) : 0
+  name   = "${local.flattened-instances[count.index].name}"
   key_name               = var.key_name
   image_id                    = data.aws_ami.controller.id
   instance_type = var.instance_type
@@ -136,15 +217,13 @@ resource "aws_launch_template" "controller" {
     }
   }
   network_interfaces {
-    security_groups = var.security_groups
-  }
-
-  
+    security_groups = [aws_security_group.public.id]
+  }  
 }
 
 resource "aws_autoscaling_group" "controller" {
-  count = var.use_nlb_and_asg ? length(var.instances) : 0
-  name                      = "${var.instances[count.index]}.${var.name}"
+  count = var.use_nlb_and_asg ? length(local.flattened-instances) : 0
+  name                      = "${local.flattened-instances[count.index].name}"
   max_size                  = 2
   min_size                  = 1
   health_check_grace_period = 300
@@ -152,7 +231,7 @@ resource "aws_autoscaling_group" "controller" {
   desired_capacity          = 1
   force_delete              = true
   placement_group           = aws_placement_group.controller[count.index].id
-  vpc_zone_identifier       = [var.controller_subnet_id]
+  vpc_zone_identifier       = [local.flattened-instances[count.index].vpc_controller_subnet_id]
 
   launch_template {
     id =  aws_launch_template.controller[count.index].id
@@ -166,7 +245,7 @@ resource "aws_autoscaling_group" "controller" {
 
   tag {
     key                 = "Name"
-    value               = "${var.instances[count.index]}.${var.name}.${var.dns_zone.name}"
+    value               = "${local.flattened-instances[count.index].dns_name}"
     propagate_at_launch = true
   }
 
@@ -176,27 +255,27 @@ resource "aws_autoscaling_group" "controller" {
 }
 
 resource "aws_lb" "controller" {
-  count = var.use_nlb_and_asg ? length(var.instances) : 0
-  name                      = "${var.instances[count.index]}-${var.name}"
+  count = var.use_nlb_and_asg ? length(local.flattened-instances) : 0
+  name                      = "${local.flattened-instances[count.index].name}"
   internal           = false
   load_balancer_type = "network"
-  subnets            = [var.nlb_subnet_id]
-  security_groups = var.security_groups
+  subnets            = [local.flattened-instances[count.index].vpc_nlb_subnet_id]
+  security_groups = [aws_security_group.public.id]
 
   enable_deletion_protection = false
 }
 
 resource "aws_lb_target_group" "controller" {
-  count = var.use_nlb_and_asg ? length(var.instances) : 0
+  count = var.use_nlb_and_asg ? length(local.flattened-instances) : 0
   target_type = "instance"
-  name = "${var.instances[count.index]}-${var.name}"
+  name = "${local.flattened-instances[count.index].name}"
   port = 443
   protocol = "TCP_UDP"
   vpc_id = var.vpc_id
 }
 
 resource "aws_lb_listener" "controller" {
-  count = var.use_nlb_and_asg ? length(var.instances) : 0
+  count = var.use_nlb_and_asg ? length(local.flattened-instances) : 0
   load_balancer_arn = aws_lb.controller[count.index].arn
   port              = "443"
   protocol          = "TCP_UDP"
@@ -209,16 +288,16 @@ resource "aws_lb_listener" "controller" {
 
 /* If we need to enable the zerossl fallback, that's here
 resource "aws_lb_target_group" "controller-plain" {
-  count = var.use_nlb_and_asg ? length(var.instances) : 0
+  count = var.use_nlb_and_asg ? length(local.flattened-instances) : 0
   target_type = "instance"
-  name = "${var.instances[count.index]}-${var.name}"
+  name = "${local.flattened-instances[count.index]}-${var.name}"
   port = 80
   protocol = "TCP"
   vpc_id = var.vpc_id
 }
 
 resource "aws_lb_listener" "controller-plain" {
-  count = var.use_nlb_and_asg ? length(var.instances) : 0
+  count = var.use_nlb_and_asg ? length(local.flattened-instances) : 0
   load_balancer_arn = aws_lb.controller[count.index].arn
   port              = "80"
   protocol          = "TCP"
@@ -232,17 +311,17 @@ resource "aws_lb_listener" "controller-plain" {
 
 
 resource "aws_autoscaling_attachment" "controller" {
-  count = var.use_nlb_and_asg ? length(var.instances) : 0
+  count = var.use_nlb_and_asg ? length(local.flattened-instances) : 0
   autoscaling_group_name = aws_autoscaling_group.controller[count.index].id
   lb_target_group_arn = aws_lb_target_group.controller[count.index].arn
 }
 
 /* -- outputs need thought after the changes --
 output "public_ip" {
-  value = { for i, v in aws_instance.controller : var.instances[i] => v.public_ip }
+  value = { for i, v in aws_instance.controller : local.flattened-instances[i] => v.public_ip }
 }
 
 output "public_dns" {
-  value = { for i, v in aws_route53_record.endpoint : var.instances[i] => v.name }
+  value = { for i, v in aws_route53_record.endpoint : local.flattened-instances[i] => v.name }
 }
 */

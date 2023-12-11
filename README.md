@@ -15,32 +15,4 @@ To succeed, you’ll need:
 
 #### Example Use
 
-```
-module "bowtie-control-plane" {
-    source = "../terraform-bowtie-with-aws"
-    version = "0.1.0"
-
-    # Optional and must be the same name in all sites
-    key_name = "Teddy Rosevelt @ Laptop"
-
-    # The name of the DNS zone within the AWS account. Public DNS names will
-    # appear underneath this domain.
-    dns_zone_name = "rock.associates"
-
-    # A unique string that your deployment will live under.
-    # Final hostnames will look like: alpha.${name}.${dns_zone_name}
-    name = "sparky-torvalds"
-
-    # Bowtie initial user settings that will pre-seed the Controller.
-    bowtie_admin_email = "your-sso-email@example.com"
-    bowtie_name     = "Firstname Lastname"
-
-    # You should almost certainly use a secret manager or a well-protected environment variable for this. 
-    bowtie_password        = "6abfdd6488c6ad4b46ced3202c285b67"
-
-    # Optional if you want to configure SSO. Requires that you have the new
-    # domains as a trusted callback in your configured SSO provider. We have an
-    # example one with org details in controller/dex-gitlab.yaml
-    # bowtie_sso_config_path = "/home/teddyroosevelt/src/bowtie/controller/dex-gitlab.yaml"
-}
-```
+Check `examples` folder for a complete quickstart
