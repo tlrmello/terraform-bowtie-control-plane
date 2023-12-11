@@ -22,8 +22,8 @@ resource "checkmate_http_health" "baseline_up" {
   # Will perform an HTTP GET request
   method = "GET"
 
-  # The overall test should not take longer than 30 minutes
-  timeout = 1000 * 60 * 30 # ms, seconds, minutes
+  # The overall test should not take longer than 15 minutes
+  timeout = 1000 * 60 * 15 # ms, seconds, minutes
 
   # Wait 0.5 seconds between attempts
   interval = 500
@@ -37,7 +37,7 @@ resource "checkmate_http_health" "baseline_up" {
 
 
 module "bowtie-org" {
-  #depends_on = [checkmate_http_health.baseline_up]
+  depends_on = [checkmate_http_health.baseline_up]
   source    = "./modules/bowtie"
   org_name = var.org_name
 }

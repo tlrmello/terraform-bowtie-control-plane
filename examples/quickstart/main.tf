@@ -88,6 +88,11 @@ module "bowtie_us_east_2" {
 }
 
 module "bowtie-control-plane" {
+    depends_on = [
+      module.bowtie_us_east_2,
+      module.bowtie_us_west_2
+    ]
+
     api_hostname     = "https://${var.bootstrap_hosts[0]}"
     source = "bowtie/control-plane"
 
