@@ -2,7 +2,7 @@ terraform {
   required_providers {
     bowtie = {
       source  = "bowtieworks/bowtie"
-      version = "0.4"
+      version = "0.5.0"
     }
     checkmate = {
       source = "tetratelabs/checkmate"
