@@ -119,7 +119,7 @@ data "cloudinit_config" "user_data" {
           path    = "/etc/bowtie-server.d/site.conf"
           content = <<-EOS
             SITE_ID=${local.flattened-instances[count.index].site_id}
-            BOWTIE_SYNC_PSK=${var.sync_psk.result}
+            BOWTIE_SYNC_PSK=${var.sync_psk}
             BOWTIE_JOIN_STRATEGY=bootstrap-at-failure
           EOS
         }
