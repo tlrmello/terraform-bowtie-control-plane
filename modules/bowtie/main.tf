@@ -71,7 +71,7 @@ resource "bowtie_resource" "all" {
 }
 
 resource "bowtie_dns_block_list" "example" {
-  name     = "OSINT Threat Intelligence Block List from github.com/hagezi/dns-blocklists"
+  name     = "Threat Intelligence Feed"
   upstream = "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/tif.txt"
   override_to_allow = [
     "permitted.example.com"
