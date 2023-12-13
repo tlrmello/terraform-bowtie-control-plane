@@ -101,7 +101,7 @@ module "bowtie_us_east_2" {
 
 module "bowtie-control-plane" {
     source  = "bowtieworks/control-plane/bowtie"
-    version = "0.2.3"
+    version = ">= 0.2.4, < 0.3.0"
     depends_on = [
       module.bowtie_us_east_2,
       module.bowtie_us_west_2
