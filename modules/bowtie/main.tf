@@ -66,8 +66,6 @@ resource "bowtie_resource" "all" {
       0, 65535
     ]
   }
-
-  # depends_on = [restapi_object.bowtie_user]
 }
 
 resource "bowtie_dns_block_list" "example" {
