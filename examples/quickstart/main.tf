@@ -7,10 +7,16 @@ terraform {
   }
 }
 
-resource "random_uuid" "bowtie_psk" {}
+// This example shows using amazon SSM for secrets
+// You could of course use secret environment variables, Vault, or another secret manager
+data "aws_ssm_parameter" "password" {
+  name = "/bowtie/admin/password"
+  provider = aws.us-east-2
+}
 
-locals {
-  sync_psk = coalesce(var.bowtie_sync_psk, random_uuid.bowtie_psk)
+data "aws_ssm_parameter" "sync-psk" {
+  name = "/bowtie/admin/sync-psk"
+  provider = aws.us-east-2
 }
 
 resource "random_uuid" "us-west-2-site-id" {}
@@ -18,9 +24,7 @@ resource "random_uuid" "us-east-2-site-id" {}
 
 // One module per VPC, we'll sort out the rest.
 module "bowtie_us_west_2" {
-    source = "bowtie/control-plane/modules/aws_vpc"
-
-    key_name = "issac@angmar"
+    source = "bowtieworks/control-plane/bowtie//modules/aws_vpc"
 
     // True: Associate each controller with an ASG of unit 1, and a one-unit NLB to protect
     // against instance failures
@@ -30,24 +34,32 @@ module "bowtie_us_west_2" {
 
     init-users = [{
       email = var.bowtie_admin_email
-      hashed_password = format("$bcrypt%s", bcrypt(var.bowtie_admin_password))
+      hashed_password = format("$bcrypt%s", bcrypt(data.aws_ssm_parameter.password.value))
     }]
 
     providers = { aws = aws.us-west-2 }
     name = var.control_plane_name
     bootstrap_hosts = var.bootstrap_hosts
 
-    dns_zone_name = "rock.associates"
-    sync_psk = local.sync_psk
+    dns_zone_name = var.dns_zone_name
+    sync_psk = data.aws_ssm_parameter.sync-psk.value
 
-    vpc_id = "vpc-083d61b2bde725277"
+    // You can import or give direct strings here.
+    vpc_id = "vpc-00000011110000"
     subnets = [
         {
-            number_of_controllers = 2,
-            host_prefix = "oregon-a-",
+            number_of_controllers = 1,
+            host_prefix = "west-a-",
             site_id = random_uuid.us-west-2-site-id.result,
-            vpc_controller_subnet_id = "subnet-01bfc36b04578e926",
-            vpc_nlb_subnet_id = "subnet-0860f6f38faa94025",
+            vpc_controller_subnet_id = "subnet-7770011110000",
+            vpc_nlb_subnet_id = "subnet-88800011110000",
+        },
+        {
+            number_of_controllers = 1,
+            host_prefix = "west-b-",
+            site_id = random_uuid.us-west-2-site-id.result,
+            vpc_controller_subnet_id = "subnet-55500011110000",
+            vpc_nlb_subnet_id = "subnet-9990011110000",
         }
     ]
 }
@@ -68,7 +80,7 @@ module "bowtie_us_east_2" {
     name = var.control_plane_name
 
     dns_zone_name = "rock.associates"
-    sync_psk = local.sync_psk
+    sync_psk = data.aws_ssm_parameter.sync-psk.value
 
     bootstrap_hosts = var.bootstrap_hosts
 
@@ -79,7 +91,7 @@ module "bowtie_us_east_2" {
     subnets = [
         {
             number_of_controllers = 2,
-            host_prefix = "ohio-b-",
+            host_prefix = "east-",
             site_id = random_uuid.us-east-2-site-id.result,
             vpc_controller_subnet_id = data.aws_subnet.private-east-2b.id,
             vpc_nlb_subnet_id = data.aws_subnet.public-east-2b.id,
@@ -88,20 +100,21 @@ module "bowtie_us_east_2" {
 }
 
 module "bowtie-control-plane" {
+    source  = "bowtieworks/control-plane/bowtie"
+    version = "0.2.3"
     depends_on = [
       module.bowtie_us_east_2,
       module.bowtie_us_west_2
     ]
 
     api_hostname     = "https://${var.bootstrap_hosts[0]}"
-    source = "bowtie/control-plane"
 
     # The name of the DNS zone within the AWS account. Public DNS names will
     # appear underneath this domain.
 
     // This shows up in user-facing menus and
     // the network interface name is derived from this on endpoints
-    org_name = "Rock Associates"
+    org_name = "Example Environment"
 }
 
 data "aws_subnet" "private-east-2b" {
@@ -126,7 +139,7 @@ data "aws_subnet" "public-east-2b" {
 provider "bowtie" {
   host     = "https://${var.bootstrap_hosts[0]}"
   username = var.bowtie_admin_email
-  password =  var.bowtie_admin_password
+  password =  data.aws_ssm_parameter.password.value
 }
 
 provider "aws" {
