@@ -40,10 +40,16 @@ data "aws_route53_zone" "org" {
   private_zone = false
 }
 
+module "synthesized_vpc" {
+  source = "../aws_vpc_synthesis"
+  vpc_id = var.vpc_id
+  vpc = var.vpc
+}
+
 resource "aws_security_group" "public" {
   name        = "${var.name} public security group"
   description = "${var.name} Bowtie Controllers"
-  vpc_id      = var.vpc_id
+  vpc_id      = module.synthesized_vpc.vpc_id
 
 
   /* TODO Paramaterize.
@@ -166,7 +172,7 @@ resource "aws_instance" "controller" {
   count = var.use_nlb_and_asg ? 0 : length(local.flattened-instances)
   ami                    = data.aws_ami.controller.id
   iam_instance_profile = var.iam_instance_profile_name
-  subnet_id              = local.flattened-instances[count.index].vpc_controller_subnet_id
+  subnet_id              = coalesce(local.flattened-instances[count.index].vpc_controller_subnet_id, module.synthesized_vpc.vpc_id)
   vpc_security_group_ids = [aws_security_group.public.id]
   instance_type          = var.instance_type
   key_name               = var.key_name
@@ -231,7 +237,7 @@ resource "aws_autoscaling_group" "controller" {
   desired_capacity          = 1
   force_delete              = true
   placement_group           = aws_placement_group.controller[count.index].id
-  vpc_zone_identifier       = [local.flattened-instances[count.index].vpc_controller_subnet_id]
+  vpc_zone_identifier       = [coalesce(local.flattened-instances[count.index].vpc_controller_subnet_id, module.synthesized_vpc.vpc_private_subnet_id)]
 
   launch_template {
     id =  aws_launch_template.controller[count.index].id
@@ -259,7 +265,7 @@ resource "aws_lb" "controller" {
   name                      = "${local.flattened-instances[count.index].name}"
   internal           = false
   load_balancer_type = "network"
-  subnets            = [local.flattened-instances[count.index].vpc_nlb_subnet_id]
+  subnets            = [coalesce(local.flattened-instances[count.index].vpc_nlb_subnet_id, module.synthesized_vpc.vpc_public_subnet_id)]
   security_groups = [aws_security_group.public.id]
 
   enable_deletion_protection = false
@@ -271,7 +277,7 @@ resource "aws_lb_target_group" "controller" {
   name = "${local.flattened-instances[count.index].name}"
   port = 443
   protocol = "TCP_UDP"
-  vpc_id = var.vpc_id
+  vpc_id = module.synthesized_vpc.vpc_id
 }
 
 resource "aws_lb_listener" "controller" {
@@ -308,7 +314,6 @@ resource "aws_lb_listener" "controller-plain" {
   }
 }
 */
-
 
 resource "aws_autoscaling_attachment" "controller" {
   count = var.use_nlb_and_asg ? length(local.flattened-instances) : 0

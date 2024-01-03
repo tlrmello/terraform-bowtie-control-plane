@@ -17,8 +17,21 @@ variable use_nlb_and_asg {
 }
 
 variable vpc_id {
+    description = "To use an existing VPC, insert it's ID here. For development, testing or other greenfield needs, a created vpc object may be more appropriate"
     type = string
-    default = false
+    nullable = true
+    default = null
+}
+
+variable vpc {
+    description = "To have this module own your VPC, place values here instead of using vpc_id"
+    type = object({
+        vpc_cidr = string
+        private_cidr = string
+        public_cidr = string
+    })
+    default = null
+    nullable = true
 }
 
 variable subnets {
@@ -26,7 +39,7 @@ variable subnets {
     type = list(object({
         host_prefix = string,
         number_of_controllers = number,
-        vpc_controller_subnet_id = string,
+        vpc_controller_subnet_id = optional(string),
         vpc_nlb_subnet_id = optional(string),
         site_id = string,
     }))
