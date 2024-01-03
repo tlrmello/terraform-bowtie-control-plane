@@ -90,3 +90,9 @@ variable instance_type {
     type = string
     default = "m5.large"
 }
+
+variable operate_route53 {
+    description = "If set to false, then you must make your own DNS associations, based on the output `names`"
+    type = bool
+    default = true
+}

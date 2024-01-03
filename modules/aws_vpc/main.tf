@@ -94,7 +94,7 @@ resource "aws_security_group" "public" {
 }
 
 resource "aws_route53_record" "endpoint" {
-  count = length(local.flattened-instances)
+  count = var.operate_route53 ? length(local.flattened-instances) : 0
   zone_id = data.aws_route53_zone.org.zone_id
   name    = local.flattened-instances[count.index].dns_name
   type    = var.use_nlb_and_asg ? "CNAME" : "A"
@@ -321,12 +321,17 @@ resource "aws_autoscaling_attachment" "controller" {
   lb_target_group_arn = aws_lb_target_group.controller[count.index].arn
 }
 
-/* -- outputs need thought after the changes --
-output "public_ip" {
-  value = { for i, v in aws_instance.controller : local.flattened-instances[i] => v.public_ip }
+// -- outputs need thought after the changes --
+// output "public_ip" {
+//  value = { for i, v in aws_instance.controller : local.flattened-instances[i] => v.public_ip }
+// }
+
+output "route_53_dns" {
+  value = var.operate_route53 ? { for i, v in aws_route53_record.endpoint : local.flattened-instances[i].name => v.name } : {}
 }
 
 output "public_dns" {
-  value = { for i, v in aws_route53_record.endpoint : local.flattened-instances[i] => v.name }
+  value = var.use_nlb_and_asg ? { for i, v in aws_lb.controller : local.flattened-instances[i].name => v.dns_name } : { for i, v in aws_instance.controller : local.flattened-instances[i] => v.public_dns }
 }
-*/
+
+
