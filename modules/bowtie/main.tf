@@ -7,11 +7,6 @@ terraform {
   }
 }
 
-resource "bowtie_organization" "org" {
-  name = var.org_name
-  domain = var.domain
-}
-
 resource "bowtie_site" "region" {
   for_each = var.sites
   name     = "AWS ${each.key}"
