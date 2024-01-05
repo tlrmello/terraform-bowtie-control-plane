@@ -74,6 +74,8 @@ variable "bowtie_sso_config_path" {
 variable "bootstrap_hosts" {
   description = "A List of hosts which all others will try to bootstrap to. This list has special behavior during first-initialization"
   type = list(string)
+  nullable = true
+  default = null
 }
 
 variable "init-users" {

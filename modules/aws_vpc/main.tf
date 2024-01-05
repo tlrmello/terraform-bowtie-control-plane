@@ -21,10 +21,13 @@ locals {
     ]
   ])
   hosts_short = [for i in range(0, length(local.flattened-instances)) : local.flattened-instances[i].name]
+  dns_hosts_short = [for i in range(0, length(local.flattened-instances)) : local.flattened-instances[i].dns_name]
+
+  bootstrap_from = coalesce(var.bootstrap_hosts, dns_hosts_short)
 
   bootstrap_hosts_urls = [
-    for i in range(0, length(var.bootstrap_hosts)):
-      format("https://%s", var.bootstrap_hosts[i])
+    for i in range(0, length(bootstrap_from)):
+      format("https://%s", bootstrap_from[i])
   ]
 
   entrypoint_string = format("\"%s\"", join("\",\"", local.bootstrap_hosts_urls))
