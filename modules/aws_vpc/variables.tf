@@ -41,7 +41,7 @@ variable subnets {
         number_of_controllers = number,
         vpc_controller_subnet_id = optional(string),
         vpc_nlb_subnet_id = optional(string),
-        site_id = string,
+        site_id = optional(string),
     }))
 }
 

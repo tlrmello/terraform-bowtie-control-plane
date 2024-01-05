@@ -92,7 +92,6 @@ module "bowtie_us_east_2" {
         {
             number_of_controllers = 2,
             host_prefix = "east-",
-            site_id = random_uuid.us-east-2-site-id.result,
             vpc_controller_subnet_id = data.aws_subnet.private-east-2b.id,
             vpc_nlb_subnet_id = data.aws_subnet.public-east-2b.id,
         }

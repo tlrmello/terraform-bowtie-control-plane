@@ -40,4 +40,5 @@ module "bowtie-org" {
   depends_on = [checkmate_http_health.baseline_up]
   source    = "./modules/bowtie"
   org_name = var.org_name
+  domain = replace(replace(var.api_hostname, "https://", ""), "http://", "")
 }
