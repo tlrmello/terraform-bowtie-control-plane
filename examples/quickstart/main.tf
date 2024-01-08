@@ -7,6 +7,21 @@ terraform {
   }
 }
 
+locals {
+  // You could also put these in the vars file
+  west_name = "or-b-"
+  east_name = "oh-a-"
+
+  // One per region is a safe thing to put here
+  // So here we generate the names with `00` for each of our two regions attached.
+  bootstrap_hosts = [
+    "${local.west_name}00.${var.control_plane_name}.${var.dns_zone_name}",
+    "${local.east_name}00.${var.control_plane_name}.${var.dns_zone_name}",
+  ]
+
+}
+
+
 // This example shows using amazon SSM for secrets
 // You could of course use secret environment variables, Vault, or another secret manager
 data "aws_ssm_parameter" "password" {
@@ -39,7 +54,7 @@ module "bowtie_us_west_2" {
 
     providers = { aws = aws.us-west-2 }
     name = var.control_plane_name
-    bootstrap_hosts = var.bootstrap_hosts
+    bootstrap_hosts = local.bootstrap_hosts
 
     dns_zone_name = var.dns_zone_name
     sync_psk = data.aws_ssm_parameter.sync-psk.value
@@ -82,7 +97,7 @@ module "bowtie_us_east_2" {
     dns_zone_name = "rock.associates"
     sync_psk = data.aws_ssm_parameter.sync-psk.value
 
-    bootstrap_hosts = var.bootstrap_hosts
+    bootstrap_hosts = local.bootstrap_hosts
 
     // Optional
     // iam_instance_profile_name = "Something with SSM"
@@ -113,7 +128,7 @@ module "bowtie-control-plane" {
 
     // This shows up in user-facing menus and
     // the network interface name is derived from this on endpoints
-    org_name = "Example Environment"
+    org_name = var.org_name
 }
 
 data "aws_subnet" "private-east-2b" {
@@ -166,3 +181,23 @@ provider "aws" {
     }
   }
 }
+
+// To change the default name from `Demonstration`
+/* 
+There is an open bug where this can only be added after the first `apply`
+
+import {
+  to = bowtie_organization.org
+  // Terraform expects IDs here, but also expects that imports only happen at the top level
+  id = "singleton"
+
+}
+
+resource "bowtie_organization" "org" {
+  name     = var.org_name
+  domain   = "example.${var.control_plane_name}.${var.dns_zone_name}"
+  depends_on = [
+    module.bowtie-control-plane,
+  ]
+}
+*/

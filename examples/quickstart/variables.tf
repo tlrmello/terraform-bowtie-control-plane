@@ -10,17 +10,6 @@ variable "dns_zone_name" {
   default = "r.bowtie.work.example"
 }
 
-variable bootstrap_hosts {
-  type = list(string)
-  description = "When deploying a high availability Bowtie installation, the controllers must know one another's fully qualified host names to form a cluster. This list contains the initial fully qualified controller host names, comprised of host_prefix##.control_plane_name.dns_zone_name where ## is the count of controllers deployed starting with 00."
-  default = [
-    "east-00.bowtie.r.bowtie.work.example",
-    "east-01.bowtie.r.bowtie.work.example",
-    "west-a-00.bowtie.r.bowtie.work.example",
-    "west-b-00.bowtie.r.bowtie.work.example",
-  ]
-}
-
 variable bowtie_admin_email {
   type = string
   description = "Bowtie initial administrative user's email address that will pre-seed the controller."
@@ -34,6 +23,11 @@ variable bowtie_sync_psk {
   default = null
 }
 
-variable bowtie_admin_password{
+variable bowtie_admin_password {
     default = "A Pretty Dec password is randomab4582a6ac34e6213edc"
 }
+
+variable org_name {
+  description = "What someone inside your organization would call it. This gets used in the UI"
+}
+

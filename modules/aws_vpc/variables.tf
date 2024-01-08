@@ -72,7 +72,7 @@ variable "bowtie_sso_config_path" {
 }
 
 variable "bootstrap_hosts" {
-  description = "A List of hosts which all others will try to bootstrap to. This list has special behavior during first-initialization"
+  description = "A List of hosts which all others will try to bootstrap to. This list has special behavior during first-initialization. If you leave this blank, it will only bootstrap to a single VPC module. This is fine for testing or bootstrapping a single site but not multiple regions."
   type = list(string)
   nullable = true
   default = null
