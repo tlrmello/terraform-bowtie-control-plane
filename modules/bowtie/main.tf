@@ -75,4 +75,3 @@ resource "bowtie_dns_block_list" "example" {
     "permitted.example.com"
   ]
 }
-

@@ -7,6 +7,11 @@ terraform {
   }
 }
 
+// This will genrate a random site_id for every site. If you pass one in, that will be used instead.
+resource "random_uuid" "generated_site_id" {
+  count = length(var.subnets)
+}
+
 locals {
   flattened-instances = flatten([
     for i in range(0, length(var.subnets)): [
@@ -16,15 +21,19 @@ locals {
           vpc_id = var.vpc_id,
           vpc_controller_subnet_id = var.subnets[i].vpc_controller_subnet_id,
           site_id = var.subnets[i].site_id,
+          site_index = i,
           vpc_nlb_subnet_id = var.subnets[i].vpc_nlb_subnet_id,
         }
     ]
   ])
   hosts_short = [for i in range(0, length(local.flattened-instances)) : local.flattened-instances[i].name]
+  dns_hosts_short = [for i in range(0, length(local.flattened-instances)) : local.flattened-instances[i].dns_name]
+
+  bootstrap_from = coalesce(var.bootstrap_hosts, local.dns_hosts_short)
 
   bootstrap_hosts_urls = [
-    for i in range(0, length(var.bootstrap_hosts)):
-      format("https://%s", var.bootstrap_hosts[i])
+    for i in range(0, length(local.bootstrap_from)):
+      format("https://%s", local.bootstrap_from[i])
   ]
 
   entrypoint_string = format("\"%s\"", join("\",\"", local.bootstrap_hosts_urls))
@@ -124,7 +133,7 @@ data "cloudinit_config" "user_data" {
         {
           path    = "/etc/bowtie-server.d/site.conf"
           content = <<-EOS
-            SITE_ID=${local.flattened-instances[count.index].site_id}
+            SITE_ID=${coalesce(local.flattened-instances[count.index].site_id, random_uuid.generated_site_id[local.flattened-instances[count.index].site_index].result)}
             BOWTIE_SYNC_PSK=${var.sync_psk}
             BOWTIE_JOIN_STRATEGY=bootstrap-at-failure
           EOS
