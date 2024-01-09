@@ -1,8 +1,8 @@
 # Terraform Bowtie Control Plane Quickstart Example
 
-This Bowtie module will deploy a set of controllers in a given VPC. If desired, the module will deploy the controllers behind network load balancers and in auto scaling groups.
+This Bowtie module will deploy a set of controllers in a given VPC, or if no VPC is given, will create the basic AWS infrastructure necessary for a minimal deployment. If desired, the module will deploy the controllers behind network load balancers and in auto scaling groups.
 
-To deploy into more than one VPC, the module may be used more than once in a single terraform configuration. The resulting hostnames must be declared as a variable list so that the controllers can discover one another and cluster together.
+To deploy into more than one VPC, the module may be used more than once in a single terraform configuration. 
 
 For a given VPC, more than one subnet may be given to deploy into alternating availability zones by specifying multiple subnet entries for the VPC.
 
