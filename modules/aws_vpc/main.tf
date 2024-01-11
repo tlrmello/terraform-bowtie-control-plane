@@ -45,6 +45,7 @@ locals {
 }
 
 data "aws_route53_zone" "org" {
+  count = var.operate_route53 ? 1 : 0
   name         = var.dns_zone_name
   private_zone = false
 }
@@ -104,7 +105,7 @@ resource "aws_security_group" "public" {
 
 resource "aws_route53_record" "endpoint" {
   count = var.operate_route53 ? length(local.flattened-instances) : 0
-  zone_id = data.aws_route53_zone.org.zone_id
+  zone_id = data.aws_route53_zone.org.0.zone_id
   name    = local.flattened-instances[count.index].dns_name
   type    = var.use_nlb_and_asg ? "CNAME" : "A"
   ttl     = "60"
@@ -330,17 +331,16 @@ resource "aws_autoscaling_attachment" "controller" {
   lb_target_group_arn = aws_lb_target_group.controller[count.index].arn
 }
 
-// -- outputs need thought after the changes --
-// output "public_ip" {
-//  value = { for i, v in aws_instance.controller : local.flattened-instances[i] => v.public_ip }
-// }
-
 output "route_53_dns" {
   value = var.operate_route53 ? { for i, v in aws_route53_record.endpoint : local.flattened-instances[i].name => v.name } : {}
 }
 
 output "public_dns" {
+  description = "key is the controller's short name, value is the associated dns name or NLB's dns name"
   value = var.use_nlb_and_asg ? { for i, v in aws_lb.controller : local.flattened-instances[i].name => v.dns_name } : { for i, v in aws_instance.controller : local.flattened-instances[i] => v.public_dns }
 }
 
-
+output "nlb_to_instance_name" {
+  description = "key is the controller's reachable name, value is the associated NLB's dns name"
+  value = var.use_nlb_and_asg ? { for i, v in aws_lb.controller : local.flattened-instances[i].dns_name => v.dns_name } : {}
+}
