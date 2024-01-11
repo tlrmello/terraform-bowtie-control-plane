@@ -204,3 +204,26 @@ provider "aws" {
     }
   }
 }
+
+/* Here is an unused example with `operate_route53` in manually in this module
+
+module "bowtie_us_west_2" {
+  ..
+  operate_route53 = false
+}
+
+data "aws_route53_zone" "rockassociates" {
+  name         = "rock.associates"
+  private_zone = false
+}
+
+resource "aws_route53_record" "endpoint" {
+  for_each = module.bowtie_us_west_2.nlb_to_instance_name
+  zone_id = data.aws_route53_zone.rockassociates.zone_id
+  name    = each.value
+  type    = "CNAME"
+  ttl     = "60"
+  records = [each.key]
+}
+
+*/
