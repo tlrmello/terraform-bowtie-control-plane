@@ -344,3 +344,9 @@ output "nlb_to_instance_name" {
   description = "key is the controller's reachable name, value is the associated NLB's dns name"
   value = var.use_nlb_and_asg ? { for i, v in aws_lb.controller : local.flattened-instances[i].dns_name => v.dns_name } : {}
 }
+
+
+output "nlb_zone_id_to_instance_name" {
+  description = "key is the controller's reachable name, value is the associated NLB's zone_id"
+  value = var.use_nlb_and_asg ? { for i, v in aws_lb.controller : local.flattened-instances[i].dns_name => v.zone_id } : {}
+}
