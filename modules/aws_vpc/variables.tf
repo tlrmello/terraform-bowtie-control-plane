@@ -35,10 +35,11 @@ variable vpc {
 }
 
 variable subnets {
-    description = "One object per subnet to deploy one or more controllers into"
+    description = "One object per subnet to deploy one or more controllers into, If names are provided, they take prescedence over `count` and `host_prefix`"
     type = list(object({
-        host_prefix = string,
-        number_of_controllers = number,
+        host_prefix = optional(string),
+        number_of_controllers = optional(number),
+        names = optional(list(string))
         vpc_controller_subnet_id = optional(string),
         vpc_nlb_subnet_id = optional(string),
         site_id = optional(string),

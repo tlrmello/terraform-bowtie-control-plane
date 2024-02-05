@@ -8,15 +8,11 @@ terraform {
 }
 
 locals {
-  // You may substitute these local values as variables if desired.
-  west_name = "west-"
-  east_name = "east-"
-
   // One initial bootstrap host per region should be defined.
   // The first host in a region, denoted with "00", is utilized for bootstrap.
   bootstrap_hosts = [
-    "${local.west_name}00.${var.control_plane_name}.${var.dns_zone_name}",
-    "${local.east_name}00.${var.control_plane_name}.${var.dns_zone_name}",
+    "john.${var.dns_zone_name}",
+    "paul.${var.dns_zone_name}",
   ]
 
 }
@@ -80,19 +76,11 @@ module "bowtie_us_west_2" {
     vpc_id = "vpc-00000011110000"
     subnets = [
         {
-            number_of_controllers = 1,
-            host_prefix = "west-a-",
+            names = ["john", "george"]
             site_id = random_uuid.us-west-2-site-id.result,
             vpc_controller_subnet_id = "subnet-7770011110000",
             vpc_nlb_subnet_id = "subnet-88800011110000",
         },
-        {
-            number_of_controllers = 1,
-            host_prefix = "west-b-",
-            site_id = random_uuid.us-west-2-site-id.result,
-            vpc_controller_subnet_id = "subnet-55500011110000",
-            vpc_nlb_subnet_id = "subnet-9990011110000",
-        }
     ]
 }
 
@@ -135,8 +123,7 @@ module "bowtie_us_east_2" {
     }
     subnets = [
         {
-            number_of_controllers = 2,
-            host_prefix = local.east_name,
+            names = ["paul", "ringo"]
             site_id = random_uuid.us-east-2-site-id.result,
         }
     ]

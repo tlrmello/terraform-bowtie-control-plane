@@ -14,17 +14,31 @@ resource "random_uuid" "generated_site_id" {
 
 locals {
   flattened-instances = flatten([
-    for i in range(0, length(var.subnets)): [
-      for j in range(0, var.subnets[i].number_of_controllers): {
-          name = format("%s%02d", var.subnets[i].host_prefix, j),
-          dns_name = "${format("%s%02d", var.subnets[i].host_prefix, j)}.${var.name}.${var.dns_zone_name}",
-          vpc_id = var.vpc_id,
-          vpc_controller_subnet_id = var.subnets[i].vpc_controller_subnet_id,
-          site_id = var.subnets[i].site_id,
-          site_index = i,
-          vpc_nlb_subnet_id = var.subnets[i].vpc_nlb_subnet_id,
-        }
-    ]
+    for i in range(0, length(var.subnets)): 
+      try(length(var.subnets[i].names), 0) > 0 ? # if names exist, use those
+      [
+        for j in range(0, length(var.subnets[i].names)): {
+            name = var.subnets[i].names[j]
+            dns_name = "${var.subnets[i].names[j]}.${var.dns_zone_name}",
+            vpc_id = var.vpc_id,
+            vpc_controller_subnet_id = var.subnets[i].vpc_controller_subnet_id,
+            site_id = var.subnets[i].site_id,
+            site_index = i,
+            vpc_nlb_subnet_id = var.subnets[i].vpc_nlb_subnet_id,
+          }
+      ]
+      : # otherwise, use generated ones
+      [
+        for j in range(0, var.subnets[i].number_of_controllers): {
+            name = format("%s%02d", var.subnets[i].host_prefix, j),
+            dns_name = "${format("%s%02d", var.subnets[i].host_prefix, j)}.${var.name}.${var.dns_zone_name}",
+            vpc_id = var.vpc_id,
+            vpc_controller_subnet_id = var.subnets[i].vpc_controller_subnet_id,
+            site_id = var.subnets[i].site_id,
+            site_index = i,
+            vpc_nlb_subnet_id = var.subnets[i].vpc_nlb_subnet_id,
+          }
+      ]
   ])
   hosts_short = [for i in range(0, length(local.flattened-instances)) : local.flattened-instances[i].name]
   dns_hosts_short = [for i in range(0, length(local.flattened-instances)) : local.flattened-instances[i].dns_name]
