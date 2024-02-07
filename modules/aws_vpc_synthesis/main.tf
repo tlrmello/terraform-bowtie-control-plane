@@ -137,7 +137,7 @@ resource "aws_route_table" "privateroutetable" {
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_nat_gateway.natgateway[0].id
+    nat_gateway_id = aws_nat_gateway.natgateway[0].id
   }
 
   depends_on = [aws_nat_gateway.natgateway]

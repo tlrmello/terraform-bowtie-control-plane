@@ -40,6 +40,12 @@ locals {
           }
       ]
   ])
+
+  user_datas = {
+    for i in range(0, length(local.flattened-instances)):
+      local.flattened-instances[i].name => local.flattened-instances[i]
+  }
+
   hosts_short = [for i in range(0, length(local.flattened-instances)) : local.flattened-instances[i].name]
   dns_hosts_short = [for i in range(0, length(local.flattened-instances)) : local.flattened-instances[i].dns_name]
 
@@ -56,6 +62,13 @@ locals {
     for i in range(0, length(var.init-users)):
       "${var.init-users[i].email}:${var.init-users[i].hashed_password}"
   ])
+
+  // Make an empty map for iam_instance_profile in the launch template if you aren't going to use it.
+  // this feeds into a dynamic block below
+  // TODO this should be a dictionary
+  use_iam_instance_profile =  try(length(var.iam_instance_profile_name), 0) > 0 ? {
+    iam_instance_profile = var.iam_instance_profile_name
+  } : {}
 }
 
 data "aws_route53_zone" "org" {
@@ -127,17 +140,22 @@ resource "aws_route53_record" "endpoint" {
 }
 
 data "cloudinit_config" "user_data" {
-  gzip          = false
-  base64_encode = false
-  count         = length(local.flattened-instances)
+  // gzip is suggested to solve the user_data idempotency issue but does not.
+  gzip          = true
+  base64_encode = true
+  
+  // Attempting a for_each instead of a count here because it might
+  // not register changes if the underlying data changes. 
+  // This turned out to be false but I do think it's a little bit nicer code.
+  for_each = local.user_datas
 
   part {
     filename     = "cloud-init.yml"
     content_type = "text/cloud-config"
 
     content = yamlencode({
-      fqdn                      = local.flattened-instances[count.index].dns_name
-      hostname                  = local.flattened-instances[count.index].dns_name
+      fqdn                      = each.value.dns_name
+      hostname                  = each.value.dns_name
       preserve_hostname         = false
       prefer_fqdn_over_hostname = true
 
@@ -148,7 +166,7 @@ data "cloudinit_config" "user_data" {
         {
           path    = "/etc/bowtie-server.d/site.conf"
           content = <<-EOS
-            SITE_ID=${coalesce(local.flattened-instances[count.index].site_id, random_uuid.generated_site_id[local.flattened-instances[count.index].site_index].result)}
+            SITE_ID=${coalesce(each.value.site_id, random_uuid.generated_site_id[each.value.site_index].result)}
             BOWTIE_SYNC_PSK=${var.sync_psk}
             BOWTIE_JOIN_STRATEGY=bootstrap-at-failure
           EOS
@@ -209,8 +227,12 @@ resource "aws_instance" "controller" {
     delete_on_termination = "true"
   }
 
-  user_data                   = data.cloudinit_config.user_data[count.index].rendered
-  user_data_replace_on_change = true
+  // put-only user_data is not ideal, but it's better than reaping the resource
+  lifecycle {
+    ignore_changes = [user_data]
+  }
+  user_data                   = data.cloudinit_config.user_data[local.flattened-instances[count.index].name].rendered
+  user_data_replace_on_change = false
 
   tags = {
     Name = "${local.flattened-instances[count.index].dns_name}"
@@ -227,16 +249,22 @@ resource "aws_placement_group" "controller" {
 
 resource "aws_launch_template" "controller" {
   count = var.use_nlb_and_asg ? length(local.flattened-instances) : 0
-  name   = "${local.flattened-instances[count.index].name}"
   key_name               = var.key_name
   image_id                    = data.aws_ami.controller.id
   instance_type = var.instance_type
 
-  iam_instance_profile {
-    name = var.iam_instance_profile_name
+  // If iam_instance_profile is null, we need to set the variable to null not an empty object
+  dynamic iam_instance_profile {
+    for_each = local.use_iam_instance_profile
+    content {
+      name = var.iam_instance_profile_name
+    }
   }
 
-  user_data = base64encode(data.cloudinit_config.user_data[count.index].rendered)
+  lifecycle {
+    ignore_changes = [user_data]
+  }
+  user_data = data.cloudinit_config.user_data[local.flattened-instances[count.index].name].rendered
   block_device_mappings {
     device_name = "/dev/xvda"
 
