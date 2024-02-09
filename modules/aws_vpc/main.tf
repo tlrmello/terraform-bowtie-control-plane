@@ -189,9 +189,7 @@ data "cloudinit_config" "user_data" {
         ], var.bowtie_sso_config_path != null ? [
         {
           path    = "/etc/dex/${basename(var.bowtie_sso_config_path)}"
-          content = <<-EOS
-            ${indent(4, file(var.bowtie_sso_config_path))}
-          EOS
+          content = file(var.bowtie_sso_config_path)
         }
       ] : [])
     })
