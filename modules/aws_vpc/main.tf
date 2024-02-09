@@ -88,25 +88,6 @@ resource "aws_security_group" "public" {
   description = "${var.name} Bowtie Controllers"
   vpc_id      = module.synthesized_vpc.vpc_id
 
-
-  /* TODO Paramaterize.
-  Potentially paramaterizing this means allowing one SG per Subnet
-  So maybe we should do that now, if the resource will be dynamic in the future
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }*/
-  
-  /* If we need to enable the zerossl fallback, that's here
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  */
   ingress {
     from_port   = 443
     to_port     = 443
@@ -128,6 +109,28 @@ resource "aws_security_group" "public" {
     cidr_blocks      = ["0.0.0.0/0"]
     ipv6_cidr_blocks = ["::/0"]
   }
+}
+
+resource "aws_security_group_rule" "ssh" {
+  count = var.allow_public_ssh_from_anywhere ? 1 : 0
+  type              = "ingress"
+  from_port         = 22
+  to_port           = 22
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  ipv6_cidr_blocks  = ["::/0"]
+  security_group_id = aws_security_group.public.id
+}
+
+resource "aws_security_group_rule" "http" {
+  count = var.allow_public_port_80_http_from_anywhere ? 1 : 0
+  type              = "ingress"
+  from_port         = 80
+  to_port           = 80
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  ipv6_cidr_blocks  = ["::/0"]
+  security_group_id = aws_security_group.public.id
 }
 
 resource "aws_route53_record" "endpoint" {
@@ -190,6 +193,132 @@ data "cloudinit_config" "user_data" {
         {
           path    = "/etc/dex/${basename(var.bowtie_sso_config_path)}"
           content = file(var.bowtie_sso_config_path)
+        }] : [],
+        var.oidc_contents != null ? [
+          for each in var.oidc_contents:
+            {
+              path = "/etc/dex/${each.name}.yaml"
+              content = <<-EOT
+                type: oidc
+                id: ${each.id}
+                name: ${each.name}
+                config:
+                  #
+                  # This file originally written by cloud-init at first-boot
+                  #
+
+                  # Canonical URL of the provider, also used for configuration discovery.
+                  # This value MUST match the value returned in the provider config discovery.
+                  #
+                  # See: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig
+                  issuer: ${ each.issuer }
+
+                  # Connector config values starting with a "$" will read from the environment.
+                  clientID: ${ each.clientID }
+                  clientSecret: ${ each.clientSecret }
+
+                  # Dex's issuer URL + "/callback"
+                  redirectURI: $DEX_ORIGIN/dex/callback
+
+
+                  # Some providers require passing client_secret via POST parameters instead
+                  # of basic auth, despite the OAuth2 RFC discouraging it. Many of these
+                  # cases are caught internally, but some may need to uncomment the
+                  # following field.
+                  #
+                  # basicAuthUnsupported: true
+                  basicAuthUnsupported: %{ if each.basicAuthUnsupported == true }true%{ else }false%{ endif }
+
+                  # List of additional scopes to request in token response
+                  # Default is profile and email
+                  # Full list at https://dexidp.io/docs/custom-scopes-claims-clients/
+                  #scopes:
+                  # - profile
+                  # - email
+                  # - groups
+
+                  # Some providers return claims without "email_verified", when they had no usage of emails verification in enrollment process
+                  # or if they are acting as a proxy for another IDP etc AWS Cognito with an upstream SAML IDP
+                  # This can be overridden with the below option
+                  insecureSkipEmailVerified: %{ if each.insecureSkipEmailVerified == true }true%{ else }false%{ endif }
+
+                  # Groups claims (like the rest of oidc claims through dex) only refresh when the id token is refreshed
+                  # meaning the regular refresh flow doesn't update the groups claim. As such by default the oidc connector
+                  # doesn't allow groups claims. If you are okay with having potentially stale group claims you can use
+                  # this option to enable groups claims through the oidc connector on a per-connector basis.
+                  # This can be overridden with the below option
+                  insecureEnableGroups: %{ if each.insecureEnableGroups == true }true%{ else }false%{ endif }
+
+                  # When enabled, the OpenID Connector will query the UserInfo endpoint for additional claims. UserInfo claims
+                  # take priority over claims returned by the IDToken. This option should be used when the IDToken doesn't contain
+                  # all the claims requested.
+                  # https://openid.net/specs/openid-connect-core-1_0.html#UserInfo
+                  # getUserInfo: true
+
+                  # The set claim is used as user id.
+                  # Claims list at https://openid.net/specs/openid-connect-core-1_0.html#Claims
+                  # Default: sub
+                  # userIDKey: nickname
+
+                  # The set claim is used as user name.
+                  # Default: name
+                  # userNameKey: nickname
+
+                  # The acr_values variable specifies the Authentication Context Class Values within
+                  # the Authentication Request that the Authorization Server is being requested to process
+                  # from this Client.
+                  # acrValues:
+                  #  - <value>
+                  #  - <value>
+
+                  # For offline_access, the prompt parameter is set by default to "prompt=consent".
+                  # However this is not supported by all OIDC providers, some of them support different
+                  # value for prompt, like "prompt=login" or "prompt=none"
+                  # promptType: consent
+
+                  # Some providers return non-standard claims (eg. mail).
+                  # Use claimMapping to map those claims to standard claims:
+                  # https://openid.net/specs/openid-connect-core-1_0.html#Claims
+                  # claimMapping can only map a non-standard claim to a standard one if it's not returned in the id_token.
+                  #claimMapping:
+                    # The set claim is used as preferred username.
+                    # Default: preferred_username
+                    # preferred_username: other_user_name
+
+                    # The set claim is used as email.
+                    # Default: email
+                    # email: mail
+
+                    # The set claim is used as groups.
+                    # Default: groups
+                    # groups: "cognito:groups"
+
+                  # The section to override options discovered automatically from
+                  # the providers' discovery URL (.well-known/openid-configuration).
+                  #providerDiscoveryOverrides:
+                    # tokenURL provides a way to user overwrite the token URL
+                    # from the .well-known/openid-configuration 'token_endpoint'.
+                    # tokenURL: ""
+                    #
+                    # authURL provides a way to user overwrite the authorization URL
+                    # from the .well-known/openid-configuration 'authorization_endpoint'.
+                    # authURL: ""
+              EOT
+            }
+      ] : [],
+      var.update_at != null ? [
+        {
+          path = "/etc/update-at"
+          content = <<-EOT
+          [Timer]
+          %{ if var.update_at.OnCalendar != null }OnCalendar=
+          OnCalendar=${ var.update_at.OnCalendar.OnCalendar }
+          %{ if var.update_at.OnCalendar.RandomizedDelaySec == true }RandomizedDelaySec=${  var.update_at.OnCalendar.RandomizedDelaySec }
+          %{ if var.update_at.OnCalendar.FixexRandomDelay == true }FixedRandomDelay=${  var.update_at.OnCalendar.FixedRandomDelay }%{ endif }
+          %{ else }%{ if var.update_at.OnCalendar.OnActiveSec == true }OnActiveSec=${ var.update_at.OnCalendar.OnActiveSec }%{ endif }
+          %{ endif }
+          %{ endif }
+          EOT
         }
       ] : [])
     })
