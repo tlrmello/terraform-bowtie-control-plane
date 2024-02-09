@@ -313,9 +313,9 @@ data "cloudinit_config" "user_data" {
           [Timer]
           %{ if var.update_at.OnCalendar != null }OnCalendar=
           OnCalendar=${ var.update_at.OnCalendar.OnCalendar }
-          %{ if var.update_at.OnCalendar.RandomizedDelaySec == true }RandomizedDelaySec=${  var.update_at.OnCalendar.RandomizedDelaySec }
-          %{ if var.update_at.OnCalendar.FixexRandomDelay == true }FixedRandomDelay=${  var.update_at.OnCalendar.FixedRandomDelay }%{ endif }
-          %{ else }%{ if var.update_at.OnCalendar.OnActiveSec == true }OnActiveSec=${ var.update_at.OnCalendar.OnActiveSec }%{ endif }
+          %{ if var.update_at.OnCalendar.RandomizedDelaySec != null }RandomizedDelaySec=${  var.update_at.OnCalendar.RandomizedDelaySec }
+          %{ if var.update_at.OnCalendar.FixedRandomDelay != null }FixedRandomDelay=${  var.update_at.OnCalendar.FixedRandomDelay }%{ endif }
+          %{ else }%{ if var.update_at.OnCalendar.OnActiveSec != null }OnActiveSec=${ var.update_at.OnCalendar.OnActiveSec }%{ endif }
           %{ endif }
           %{ endif }
           EOT
