@@ -354,10 +354,6 @@ resource "aws_instance" "controller" {
     delete_on_termination = "true"
   }
 
-  // put-only user_data is not ideal, but it's better than reaping the resource
-  lifecycle {
-    ignore_changes = [user_data]
-  }
   user_data                   = data.cloudinit_config.user_data[local.flattened-instances[count.index].name].rendered
   user_data_replace_on_change = false
 
@@ -388,9 +384,6 @@ resource "aws_launch_template" "controller" {
     }
   }
 
-  lifecycle {
-    ignore_changes = [user_data]
-  }
   user_data = data.cloudinit_config.user_data[local.flattened-instances[count.index].name].rendered
   block_device_mappings {
     device_name = "/dev/xvda"
