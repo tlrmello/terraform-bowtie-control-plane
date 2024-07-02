@@ -121,6 +121,28 @@ variable update_at {
     }
 }
 
+variable bowtie_restore_strategy {
+    description = "null | s3-iam | s3-keys are valid options"
+    type = string
+    sensitive = false
+    nullable = true
+    default = null
+}
+
+variable bowtie_restore {
+    description = "This manages the /etc/restore file"
+    type = object({
+        repository=string,
+        encryption_key=string,
+        s3_region=optional(string),
+        s3_secret_access_key=optional(string),
+        s3_access_key=optional(string),
+    })
+    sensitive = true
+    nullable = true
+    default = null
+}
+
 variable oidc_contents {
     description = "This object replaces bowtie_sso_config_path in order to templatize those values and keep secrets off of your disk. Follows dex's OIDC implementation"
     type = list(object({
