@@ -121,6 +121,14 @@ variable update_at {
     }
 }
 
+variable bowtie_backup_encryption_key {
+    description = "Backup Encryption Key"
+    type = string
+    sensitive = true
+    nullable = true
+    default = null
+}
+
 variable bowtie_restore_strategy {
     description = "null | s3-iam | s3-keys are valid options"
     type = string

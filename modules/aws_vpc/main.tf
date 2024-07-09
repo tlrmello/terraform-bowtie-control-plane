@@ -194,6 +194,12 @@ data "cloudinit_config" "user_data" {
           path    = "/etc/dex/${basename(var.bowtie_sso_config_path)}"
           content = file(var.bowtie_sso_config_path)
         }] : [],
+        var.bowtie_backup_encryption_key != null ? [{
+          path    = "/etc/default/backupd"
+          content = <<-EOS
+            ENCRYPTION_KEY=${var.bowtie_backup_encryption_key}
+          EOS
+        }] : [],
         var.bowtie_restore_strategy == "s3-iam" ? [{
           path    = "/etc/restore"
           content = <<-EOS
