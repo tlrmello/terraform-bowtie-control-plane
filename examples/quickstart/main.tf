@@ -29,6 +29,14 @@ data "aws_ssm_parameter" "password" {
   provider = aws.us-east-2
 }
 
+// A hashed variant of the password will be needed when seeding the initial
+// administrative user. 
+// $ mkpasswd -m bcrypt PASSWORD
+data "aws_ssm_parameter" "hashed-password" {
+  name = "/bowtie/admin/hashed-password"
+  provider = aws.us-east-2
+}
+
 // The cluster synchronization pass key is sensitive and should be handled with
 // care.
 data "aws_ssm_parameter" "sync-psk" {
@@ -60,7 +68,7 @@ module "bowtie_us_west_2" {
 
     init-users = [{
       email = var.bowtie_admin_email
-      hashed_password = format("$bcrypt%s", bcrypt(data.aws_ssm_parameter.password.value))
+      hashed_password = format("$bcrypt%s", data.aws_ssm_parameter.hashed-password.value)
     }]
 
     providers = { aws = aws.us-west-2 }
@@ -103,7 +111,7 @@ module "bowtie_us_east_2" {
 
     init-users = [{
       email = var.bowtie_admin_email
-      hashed_password = format("$bcrypt%s", bcrypt(data.aws_ssm_parameter.password.value))
+      hashed_password = format("$bcrypt%s", data.aws_ssm_parameter.hashed-password.value)
     }]
     
     providers = { aws = aws.us-east-2 }
