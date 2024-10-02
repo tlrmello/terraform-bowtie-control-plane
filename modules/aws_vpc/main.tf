@@ -523,7 +523,7 @@ output "route_53_dns" {
 
 output "public_dns" {
   description = "key is the controller's short name, value is the associated dns name or NLB's dns name"
-  value = var.use_nlb_and_asg ? { for i, v in aws_lb.controller : local.flattened-instances[i].name => v.dns_name } : { for i, v in aws_instance.controller : local.flattened-instances[i] => v.public_dns }
+  value = var.use_nlb_and_asg ? { for i, v in aws_lb.controller : local.flattened-instances[i].name => v.dns_name } : { for i, v in aws_instance.controller : tostring(i) => v.public_dns }
 }
 
 output "nlb_to_instance_name" {
